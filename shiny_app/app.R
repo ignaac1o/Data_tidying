@@ -16,73 +16,56 @@ library(forecast)
 library(bslib)
 
 
-#Define UI for application that draws a histogram
-# ui <- fluidPage(
-# 
-#     h1(titlePanel("Stock Viewer")),
-# 
-#     fluidRow(
-#         column(2, offset = 3,
-#                textInput("tkt","Introduce stock acronym",value = "AAPL"),
-#                ),
-# 
-#         column(1,
-#                #Start Date
-#                dateInput(inputId = 'StartDate',label="Start Date",value='2020-01-01',autoclose = TRUE),
-#                ),
-# 
-#         column(1,
-#                #End Date
-#                dateInput(inputId = 'EndDate',label="End Date",autoclose = TRUE,max = Sys.Date()),
-#                #datesdisabled = seq.Date(from = as.Date("1000-01-01"),to=as.Date('StartDate'),by=1)),
-#                ),
-# 
-#         column(1,
-#                numericInput(inputId = "breaksDays", label = "Number of breaks", value = 5,min = 1,max = 50),
-# 
-#         ),
-# 
-#         column(1,
-#                selectInput(inputId = "typeBreaks", label = "Day/Month/Year", choices = c("days","weeks","months","years"),selected = "months"),
-#         ),
-# 
-#     ),
-# 
-#     fluidRow(
-#         column(1, offset = 3,
-#             checkboxInput("MAbox","Show Moving Average",value = FALSE),
-#         ),
-#         column(1,
-#             numericInput(inputId = 'MAdays',label = "Days of window",value = 10,min = 1,max = 150),
-#         ),
-# 
-#     ),
-# 
-#     # fluidRow(
-#     #     column(2, offset=5,
-#     #            submitButton('Set Changes'),
-#     #     )
-#     # ),
-# 
-#     hr(),
-# 
-#     plotOutput("stockPlot",width = "100%"),
-# 
-# 
-#     hr(),
-# 
-#     verbatimTextOutput("verb"),
-# )
-
-
 ui<-navbarPage(title = "Stock-Tool", theme = bs_theme(bootswatch = "lux"),
            tabPanel(title = "Home", 
-                    "content 1"),
+                    h5("HOME"),
+                    hr(),
+                    fluidPage(
+                        column(1,offset = 4,
+                               imageOutput("logo")
+                               
+                        ),
+                        br(),
+                        br(),
+                        
+                        #column(6,offset = 3,
+                        h2(style="text-align: center","Shiny-App Description"),
+                        #),
+                        
+                        br(),
+                        br(),
+                            
+                        p(style="text-align: justify; font-size = 25px",
+                              "Stock-Viewer is a Shiny application made with just with the purpose of learning how to build this type of applications. 
+                              This is an assignment for the elective subject of", em("Data Tying and Reporting"), "from the masters program in", em("Statistics for Data Science"), "at the University Carlos III de Madrid. 
+                              To build this application we have basically coded some of the most used functions and methods from the library",em("Quantmod,"), "which is one of the most used ones for stock market analysis using R."
+                              ),
+                        
+                        br(),
+                        
+                        p(style="text-align: justify; font-size = 25px",
+                          h6("*DISCLAIMER*")),
+                        p(style="text-align: justify; font-size = 25px",
+                          "This is just a learning tool. Therefore, do not consider the information provided as an invesment guide. We will not be responsible for your losses."
+                        ),
+                        
+                        br(),
+                        br(),
+                        
+                        p(style="text-align: center; font-size = 20px",
+                              em("Authors:"),"Alejandra Estrada & Ignacio Almodóvar"),
+                        
+                        
+                    ),
+
+            ),
+           
            tabPanel(title = "Price Overview",
-                    "content 2",
                     fluidPage(
                         
-                        h1(titlePanel("Stock Viewer")),
+                        h5("PRICE OVERVIEW"),
+                        
+                        hr(),
                         
                         fluidRow(
                             column(2, offset = 3,
@@ -147,7 +130,7 @@ ui<-navbarPage(title = "Stock-Tool", theme = bs_theme(bootswatch = "lux"),
            
            tabPanel(title = "Predictions",
                 fluidPage(
-                    h1(titlePanel("Predictions")),
+                    h5("Predictions"),
                     
                     hr(),
                     
@@ -206,7 +189,12 @@ server <- function(input, output) {
     })
     
     
-     
+    output$logo <- renderImage({
+        
+            list(src = "chart2.png",
+             height = 400,width=390)
+        
+    }, deleteFile = F)
     
         
     output$stockPlot=renderPlot({
