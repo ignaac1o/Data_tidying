@@ -25,8 +25,8 @@ stri_sub(data_macbeth, from = start_v, to = end_v) %>%
   stri_count_fixed("\n")
 
 novel_v <- stri_sub(data_macbeth, start_v, end_v)
-novel_v = gsub("???", "", novel_v)
-novel_v = gsub("T", "", novel_v)
+novel_v = gsub("€", "", novel_v)
+novel_v = gsub("™", "", novel_v)
 length(novel_v)
 
 stri_sub(novel_v, 1, 70) %>% cat()
@@ -129,3 +129,152 @@ textstat_frequency(macbeth_dfm_pct, n = 10) %>%
 ### 3. Token Distribution Analysis
 
 ## 3.1. Dispersion plots
+
+# Using words from tokenized corpus for dispersion
+library("quanteda.textplots")
+textplot_xray(kwic(novel_v, pattern = "macbeth")) + 
+  ggtitle("Lexical dispersion")
+
+textplot_xray(
+  kwic(novel_v, pattern = "macbeth"),
+  kwic(novel_v, pattern = "macduff")) + 
+  ggtitle("Lexical dispersion")
+
+## 3.2. Searching with regular expression
+
+# Identify the chapter break locations
+chap_positions_v <- kwic(novel_v, phrase(c("SCENE")), valuetype = "regex")$from
+
+head(chap_positions_v)
+chap_positions_v
+
+## 3.3. Identifying chapter breaks
+
+chapters_corp <- 
+  corpus(novel_v) %>%
+  corpus_segment(pattern = "SCENE\\s*.*\\n", valuetype = "regex")
+summary(chapters_corp, 10)
+
+docvars(chapters_corp, "pattern") <- stringi::stri_trim_right(docvars(chapters_corp, "pattern"))
+summary(chapters_corp, n = 3)
+
+docnames(chapters_corp) <- docvars(chapters_corp, "pattern")
+
+## 3.4. Barplots of Macbeth and Macduff
+
+# Create a dfm
+chap_dfm <- dfm(chapters_corp)
+
+# Extract row with count for "whale"/"ahab" in each chapter and convert to data frame for plotting
+macbeth_macduff_df <- chap_dfm %>% 
+  dfm_keep(pattern = c("macbeth", "macduff")) %>% 
+  convert(to = "data.frame")
+
+macbeth_macduff_df$chapter <- 1:nrow(macbeth_macduff_df)
+
+ggplot(data = macbeth_macduff_df, aes(x = chapter, y = macbeth)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Chapter", 
+       y = "Frequency",
+       title = 'Occurrence of "Macbeth"')
+
+ggplot(data = macbeth_macduff_df, aes(x = chapter, y = macduff)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Chapter", 
+       y = "Frequency",
+       title = 'Occurrence of "Macduff"')
+
+rel_dfm <- dfm_weight(chap_dfm, scheme = "prop") * 100
+head(rel_dfm)
+
+# Subset dfm and convert to data.frame object
+rel_chap_freq <- rel_dfm %>% 
+  dfm_keep(pattern = c("macbeth", "macduff")) %>% 
+  convert(to = "data.frame")
+
+rel_chap_freq$chapter <- 1:nrow(rel_chap_freq)
+ggplot(data = rel_chap_freq, aes(x = chapter, y = macbeth)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Chapter", y = "Relative frequency",
+       title = 'Occurrence of "Macbeth"')
+
+ggplot(data = rel_chap_freq, aes(x = chapter, y = macduff)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Chapter", y = "Relative frequency",
+       title = 'Occurrence of "Macduff"')
+
+### 4. Correlation
+
+## 4.1. Correlation Analysis
+
+dfm_weight(chap_dfm, scheme = "prop") %>% 
+  textstat_simil(selection = c("macbeth", "macduff"), method = "correlation", margin = "features") %>%
+  as.matrix() %>%
+  head(2)
+
+## 4.2. Testing Correlation with Randomization+
+
+cor_data_df <- dfm_weight(chap_dfm, scheme = "prop") %>% 
+  dfm_keep(pattern = c("macbeth", "macduff")) %>% 
+  convert(to = "data.frame")
+
+# Sample 1000 replicates and create data frame
+n <- 1000
+samples <- data.frame(
+  cor_sample = replicate(n, cor(sample(cor_data_df$macbeth), cor_data_df$macduff)),
+  id_sample = 1:n
+)
+
+# Plot distribution of resampled correlations
+ggplot(data = samples, aes(x = cor_sample, y = ..density..)) +
+  geom_histogram(colour = "black", binwidth = 0.01) +
+  geom_density(colour = "red") +
+  labs(x = "Correlation Coefficient", y = NULL,
+       title = "Histogram of Random Correlation Coefficients with Normal Curve")
+
+### 5. Measures of Lexical Variety
+
+## 5.1. Mean word frequency
+
+# Length of the book in chapters
+ndoc(chapters_corp)
+
+# Chapter names
+docnames(chapters_corp) %>% head()
+
+# For first few chapters
+ntoken(chapters_corp) %>% head()
+
+# Average
+(ntoken(chapters_corp) / ntype(chapters_corp)) %>% head()
+
+## 5.2. Extracting Word Usage Means
+
+(ntoken(chapters_corp) / ntype(chapters_corp)) %>%
+  plot(type = "h", ylab = "Mean word frequency")
+
+(ntoken(chapters_corp) / ntype(chapters_corp)) %>%
+  scale() %>%
+  plot(type = "h", ylab = "Scaled mean word frequency")
+
+## 5.3. Ranking the values
+
+mean_word_use_m <- (ntoken(chapters_corp) / ntype(chapters_corp))
+sort(mean_word_use_m, decreasing = TRUE) %>% head()
+
+## 5.4. Calculating the TTR
+
+dfm(chapters_corp) %>% 
+  textstat_lexdiv(measure = "TTR") %>%
+  head(n = 10)
+
+### 6. Hapax Richness
+
+# Hapaxes per document
+rowSums(chap_dfm == 1) %>% head()
+
+# As a proportion
+hapax_proportion <- rowSums(chap_dfm == 1) / ntoken(chap_dfm)
+head(hapax_proportion)
+
+barplot(hapax_proportion, beside = TRUE, col = "grey", names.arg = seq_len(ndoc(chap_dfm)))
