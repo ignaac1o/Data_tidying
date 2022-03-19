@@ -3,7 +3,7 @@
 
 string="AAPL"
 
-getSymbols(Symbols = string,src="yahoo",from="2022-01-02",to="2022-02-02")
+getSymbols(Symbols = string,src="yahoo",from="2020-01-02",to="2022-02-02")
 
 a=eval(parse(text = string))
 
@@ -40,13 +40,13 @@ ggplot(stock, aes(x = index(pbr_mm))) +
 
 
 
-number=10
+number=1
 
 trainset=head(Cl(stock),length(Cl(stock))-number)
 testset=tail(Cl(stock),number)
 
 # Forecast the data
-fc_na <- snaive(Cl(stock), h=number)
+fc_na <-naive(Cl(stock), h=number)
 
 # Plot the result
 autoplot(fc_na) #+ autolayer(ts(testset, start=length(trainset)), series = "Test Data")
@@ -70,4 +70,23 @@ autoplot(fsar)
        x="", y="",
        fill="Confidence Intervals") +
   theme(legend.position = "bottom")
+
+autoplot(stock[,6])
+
+
+daily=dailyReturn(AAPL)
+week=weeklyReturn(AAPL)
+month=monthlyReturn(pbr)
+quarter=quarterlyReturn(pbr)
+yearly=yearlyReturn(pbr)
+
+
+
+ggplot(week, aes(x = index(week), y = week)) +
+  geom_line(color = "deepskyblue4") +
+  ggtitle("Petrobras returns series") +
+  xlab("Date") + ylab("Return") +
+  theme(plot.title = element_text(hjust = 0.5)) + scale_x_date(date_labels = "%b %y", date_breaks = "6 months")
+
+
 
