@@ -11,64 +11,34 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### Loading the first text file
 
-```{r,comment=NA}
+```{r,comment=NA,warning=FALSE}
 library(quanteda)
 library(readtext)
+library(stringi)
 data_macbeth <- texts(readtext("https://www.gutenberg.org/files/1533/1533-0.txt"))
 names(data_macbeth) <- "Macbeth"
-
-library(stringi)
-stri_sub(data_macbeth, 1, 65)
 ```
 
 ### Separate content from metadata
 
 Extract the header information
 
-```{r,comment=NA}
-(start_v <- stri_locate_first_fixed(data_macbeth, "SCENE I. An open Place.")[1])
-(end_v <- stri_locate_last_fixed(data_macbeth, "[_Flourish. Exeunt._]")[1])
-```
-
-Verify that "[_Flourish. Exeunt._]" is the end of the novel
-
-```{r,comment=NA}
-kwic(tokens(data_macbeth), "[_Flourish. Exeunt._]")
-
-stri_count_fixed(data_macbeth, "\n")
-
-stri_sub(data_macbeth, from = start_v, to = end_v) %>%
-  stri_count_fixed("\n")
-
+```{r,comment=NA,warning=FALSE}
+start_v <- stri_locate_first_fixed(data_macbeth, "SCENE I. An open Place.")[1]
+end_v <- stri_locate_last_fixed(data_macbeth, "[_Flourish. Exeunt._]")[1]
 novel_v <- stri_sub(data_macbeth, start_v, end_v)
 novel_v = gsub("€", "", novel_v)
 novel_v = gsub("™", "", novel_v)
-length(novel_v)
-
-stri_sub(novel_v, 1, 70) %>% cat()
 ```
 
 ### Reprocessing the content
 
 Lowercase text
 
-```{r,comment=NA}
+```{r,comment=NA,warning=FALSE}
 novel_lower_v <- char_tolower(novel_v)
-
 macbeth_word_v <- tokens(novel_lower_v, remove_punct = TRUE) %>% as.character()
-(total_length <- length(macbeth_word_v))
-
-macbeth_word_v[1:11]
-
-macbeth_word_v[9999] 
-
-macbeth_word_v[c(6,7,8)]
-```
-
-Check positions of "love"
-
-```{r,comment=NA}
-which(macbeth_word_v == "love") %>% head()
+total_length <- length(macbeth_word_v)
 ```
 
 ## 1. Analyse and study the occurrence of words related with love or positive feelings in general.
