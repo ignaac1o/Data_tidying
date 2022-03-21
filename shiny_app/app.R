@@ -29,7 +29,7 @@ ui<-navbarPage(title = "Stock Viewer", theme = bs_theme(bootswatch = "lux"),
                             
                         p(style="text-align: justify; font-size = 25px",
                               "Stock-Viewer is a Shiny application made with just with the purpose of learning how to build this type of applications. 
-                              This is an assignment for the elective subject of", em("Data Tying and Reporting"), "from the masters program in", em("Statistics for Data Science"), "at the University Carlos III de Madrid. 
+                              This is an assignment for the elective subject of", em("Data Tying and Reporting"), "from the masters program in", em("Statistics for Data Science"), "at the Universidad Carlos III de Madrid. 
                               To build this application we have basically coded some of the most used functions and methods from the library",em("Quantmod,"), "which is one of the most used ones for stock market analysis using R."
                               ),
                         
@@ -45,10 +45,10 @@ ui<-navbarPage(title = "Stock Viewer", theme = bs_theme(bootswatch = "lux"),
                         br(),
                         
                         p(style="text-align: center; font-size = 20px",
-                              em("Authors:"),"Alejandra Estrada & Ignacio Almodóvar"),
+                              em("Authors:"),"Alejandra Estrada & Ignacio Almodóvar")
                         
                         
-                    ),
+                    )
 
             ),
            
@@ -92,7 +92,10 @@ ui<-navbarPage(title = "Stock Viewer", theme = bs_theme(bootswatch = "lux"),
                             column(2, offset = 5,
                                    checkboxInput("candle_chart",label="Show Candle Chart",value = FALSE,width = "100%"),
                             ),
+                            
                         ),
+                        
+                        p(style="text-align: center; font-size = 20px","*Data is downloaded from Yahoo Finance. Therefore, for some tickers you might need to specify also the stock exchange. e.g. CLNX.MC"),
                         
                         hr(),
                         
@@ -104,13 +107,13 @@ ui<-navbarPage(title = "Stock Viewer", theme = bs_theme(bootswatch = "lux"),
                         fluidRow(
                             column(2, offset = 5,
                                    checkboxInput("MAbox","Show Moving Average",value = FALSE,width = "100%"),
-                            ),
+                            )
                         ),
 
                         fluidRow(
                             column(2,offset=5,
                                numericInput(inputId = 'MAdays',label = "Days of window",value = 10,min = 1,max = 150),
-                            ),
+                            )
                         ),
                         
                     )
