@@ -13,9 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 \newpage
 
-## 0. Preprocessing.
+## 0. Preprocessing
 
-Loading the first text file.
+First of all, we load our text file, we are going to analyze the book "Macbeth".
 
 ```{r,comment=NA,warning=FALSE}
 library(quanteda)
@@ -25,7 +25,7 @@ data_macbeth <- texts(readtext("https://www.gutenberg.org/files/1533/1533-0.txt"
 names(data_macbeth) <- "Macbeth"
 ```
 
-Separate content from metadata and extract the header information.
+Then, we separate content from metadata and extract the header and final leftover information.
 
 ```{r,comment=NA,warning=FALSE}
 start_v <- stri_locate_first_fixed(data_macbeth, "SCENE I. An open Place.")[1]
@@ -35,7 +35,7 @@ novel_v = gsub("€", "", novel_v)
 novel_v = gsub("™", "", novel_v)
 ```
 
-Reprocessing the content for lowercase text.
+Finally, we reprocess the content for lowercase text.
 
 ```{r,comment=NA,warning=FALSE}
 novel_lower_v <- char_tolower(novel_v)
@@ -43,26 +43,36 @@ macbeth_word_v <- tokens(novel_lower_v, remove_punct = TRUE) %>% as.character()
 total_length <- length(macbeth_word_v)
 ```
 
-## 1. Analyse and study the occurrence of words related with love or positive feelings in general.
+## 1. Analyse and study the occurrence of words related with love or positive feelings in general
 
-Beginning the analysis.
+We count the number of times the word "love" is repeated.
 
 ```{r,comment=NA,warning=FALSE}
 length(macbeth_word_v[which(macbeth_word_v == "love")])
 ```
 
-Same thing using kwic().
+We do the same thing using kwic().
 
 ```{r,comment=NA,warning=FALSE}
 nrow(kwic(novel_lower_v, pattern = "love"))
-nrow(kwic(novel_lower_v, pattern = "love*")) # Includes words like "love"
-(total_love_hits <- nrow(kwic(novel_lower_v, pattern = "^love{0,1}$", valuetype = "regex")))
+```
+
+We also count the number of times that words similar to "love" are repeated.
+
+```{r,comment=NA,warning=FALSE}
+nrow(kwic(novel_lower_v, pattern = "love*"))
+```
+
+And we get the ratio of "love" to the total number of words.
+
+```{r,comment=NA,warning=FALSE}
+total_love_hits <- nrow(kwic(novel_lower_v, pattern = "^love{0,1}$", valuetype = "regex"))
 total_love_hits / ntoken(novel_lower_v, remove_punct = TRUE)
 ```
 
-## 2. Make frequency plots.
+## 2. Make frequency plots
 
-Ten most frequent words.
+We obtain the ten most frequent words.
 
 ```{r,comment=NA,warning=FALSE}
 macbeth_dfm <- dfm(novel_lower_v, remove_punct = TRUE)
@@ -70,7 +80,7 @@ library("quanteda.textstats")
 textstat_frequency(macbeth_dfm, n = 10)
 ```
 
-Plot frequency of 50 most frequent terms.
+And we plot frequency of 50 most frequent terms.
 
 ```{r,comment=NA,warning=FALSE}
 library(ggplot2)
@@ -84,15 +94,10 @@ textstat_frequency(macbeth_dfm, n = 50) %>%
 sorted_macbeth_freqs_t <- topfeatures(macbeth_dfm, n = nfeat(macbeth_dfm))
 ```
 
-Recycling.
+We also plot the percentage of full text and the term frequency as a percentage for the ten most frequent words.
 
 ```{r,comment=NA,warning=FALSE}
 sorted_macbeth_rel_freqs_t <- sorted_macbeth_freqs_t / sum(sorted_macbeth_freqs_t) * 100
-```
-
-By weighting the dfm directly.
-
-```{r,comment=NA,warning=FALSE}
 macbeth_dfm_pct <- dfm_weight(macbeth_dfm, scheme = "prop") * 100
 
 plot(sorted_macbeth_rel_freqs_t[1:10], type = "b",
@@ -105,30 +110,32 @@ textstat_frequency(macbeth_dfm_pct, n = 10) %>%
   labs(x = "", y = "Term Frequency as a Percentage")
 ```
 
-## 3. Compare word frequency data of words like “he”, “she”, “him”, “her” and show also relative frequencies.
+## 3. Compare word frequency data of words like “he”, “she”, “him”, “her” and show also relative frequencies
 
-Frequencies of "he", "she", "him" and "her".
+We calculate frequencies of "he", "she", "him" and "her".
 
 ```{r,comment=NA,warning=FALSE}
 sorted_macbeth_freqs_t[c("he", "she", "him", "her")]
 ```
 
-Another method: indexing the dfm.
+We do the same with another method, indexing the dfm.
 
 ```{r,comment=NA,warning=FALSE}
 macbeth_dfm[, c("he", "she", "him", "her")]
 ```
 
-Term frequency ratios.
+We also estimate relative frequencies.
 
 ```{r,comment=NA,warning=FALSE}
-sorted_macbeth_freqs_t["him"] / sorted_macbeth_freqs_t["her"]
-sorted_macbeth_freqs_t["he"] / sorted_macbeth_freqs_t["she"]
+sorted_macbeth_rel_freqs_t["he"]
+sorted_macbeth_rel_freqs_t["she"]
+sorted_macbeth_rel_freqs_t["him"]
+sorted_macbeth_rel_freqs_t["her"]
 ```
 
-## 4. Make a token distribution analysis.
+## 4. Make a token distribution analysis
 
-Dispersion plots using words from tokenized corpus for dispersion.
+Dispersion plots using words "Macbeth" and "Macduff".
 
 ```{r,comment=NA,warning=FALSE}
 library("quanteda.textplots")
@@ -141,17 +148,16 @@ textplot_xray(
   ggtitle("Lexical dispersion")
 ```
 
-## 5. Identify chapter breaks.
+## 5. Identify chapter breaks
 
-Identify the chapter break locations.
+We identify the chapter break locations.
 
 ```{r,comment=NA,warning=FALSE}
 chap_positions_v <- kwic(novel_v, phrase(c("SCENE")), valuetype = "regex")$from
-head(chap_positions_v)
 chap_positions_v
 ```
 
-Identifying chapter breaks.
+And we save our chapter breaks in the variable "chapters_corp".
 
 ```{r,comment=NA,warning=FALSE}
 chapters_corp <- 
@@ -162,35 +168,33 @@ docvars(chapters_corp, "pattern") <- stringi::stri_trim_right(docvars(chapters_c
 docnames(chapters_corp) <- docvars(chapters_corp, "pattern")
 ```
 
-## 7. Show some measures of lexical variety.
+## 7. Show some measures of lexical variety
 
-Mean word frequency.
-
-Length of the book in chapters.
+We want to calculate the mean word frequency, so first, we obtain the length of the book in chapters.
 
 ```{r,comment=NA,warning=FALSE}
 ndoc(chapters_corp)
 ```
 
-Chapter names.
+Then, we obtain chapter names.
 
 ```{r,comment=NA,warning=FALSE}
 docnames(chapters_corp) %>% head()
 ```
 
-For first few chapters.
+And calculate mean word frequency for the first few chapters.
 
 ```{r,comment=NA,warning=FALSE}
 ntoken(chapters_corp) %>% head()
 ```
 
-Average.
+We do the same with the average.
 
 ```{r,comment=NA,warning=FALSE}
 (ntoken(chapters_corp) / ntype(chapters_corp)) %>% head()
 ```
 
-Extracting Word Usage Means.
+Then, we extract word usage means.
 
 ```{r,comment=NA,warning=FALSE}
 (ntoken(chapters_corp) / ntype(chapters_corp)) %>%
@@ -201,14 +205,14 @@ Extracting Word Usage Means.
   plot(type = "h", ylab = "Scaled mean word frequency")
 ```
 
-Ranking the values.
+We also rank the values.
 
 ```{r,comment=NA,warning=FALSE}
 mean_word_use_m <- (ntoken(chapters_corp) / ntype(chapters_corp))
 sort(mean_word_use_m, decreasing = TRUE) %>% head()
 ```
 
-Calculating the TTR.
+And finally, we calculate the TTR.
 
 ```{r,comment=NA,warning=FALSE}
 dfm(chapters_corp) %>% 
@@ -216,21 +220,21 @@ dfm(chapters_corp) %>%
   head(n = 10)
 ```
 
-## 8. Calculate the Hapax Richness.
+## 8. Calculate the Hapax Richness
 
-Create a dfm.
+First, we create a dfm.
 
 ```{r,comment=NA,warning=FALSE}
 chap_dfm <- dfm(chapters_corp)
 ```
 
-Hapaxes per document.
+We calculate hapaxes per document.
 
 ```{r,comment=NA,warning=FALSE}
 rowSums(chap_dfm == 1) %>% head()
 ```
 
-As a proportion.
+And we calculate them again as a proportion.
 
 ```{r,comment=NA,warning=FALSE}
 hapax_proportion <- rowSums(chap_dfm == 1) / ntoken(chap_dfm)
