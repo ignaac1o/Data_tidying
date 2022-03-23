@@ -15,16 +15,45 @@ library(tidymodels)
 ```
 
 ```{r}
-datas=read.csv2("drug200.csv",sep = ",",header = TRUE)
-summary(datas)
-datas %>% head(5)
+data=read.csv2("drug200.csv",sep = ",",header = TRUE)
+summary(data)
+data %>% head(5)
 ```
-As we can see, the summary says that all variables except Age are factors. However, analying the data the variable "Na_to_k" looks like a numeric variable so we must change it.
+
+## Preprocess 
+
+let's search for missing values.
 
 ```{r}
-datas[,5]  %<>% as.numeric() 
-summary(datas)
+missingValues=function(data){ 
+  count=0
+  a=cbind(lapply(lapply(data, is.na), sum)) 
+  for(i in 1:ncol(data)){
+    if(a[i]!=0){
+      cat("There are", a[i], "missing values in column ", i,"\n" )
+      count=count+1
+    } 
+  }
+  if(count==0){
+    cat("There are no missing values in this dataset")
+  } 
+}
+missingValues(drugs)
 ```
+
+
+As we can see, the summary says that all variables except Age are factors. However, analyzing the data the variable "Na_to_k" looks like a numeric variable so we must change it.
+
+```{r}
+data[,5]  %<>% as.numeric()
+summary(data)
+```
+
+
+#Analyze correlation (hacer para variable age y Na_to_K ya que son las únicas continuas)
+No se si se podrá distinguir entre tipos de droga para las correlaciones o que. Pero estaría bien ver si se puede sacar alguna conclusion interseante con la correlación.
+
+
 
 We now plot the continuous variables to see if we can find any group evidences for the type of drug
 
@@ -53,7 +82,7 @@ train = splits[[1]]
 test = splits[[2]]
 # Run AutoML
 aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leaderboard_frame = test,
-                      include_algos = c("GLM", "XGBoost", "DeepLearning"),max_runtime_secs = 100,max_runtime_secs_per_model = 100, verbosity = NULL)
+                      include_algos = c("GLM", "XGBoost", "DeepLearning","DRF","GBM","StackedEnsemble"),max_runtime_secs = 1000,max_runtime_secs_per_model = 100, verbosity = NULL)
 
 
 ```
@@ -63,6 +92,13 @@ aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leade
 lb_mul <- h2o.get_leaderboard(aml_mul)
 print(lb_mul, n = nrow(lb_mul))
 ```
+```{r}
+probs <- table(as.matrix(data$Drug))
+probs <- probs / sum(probs)
+(sum(probs^2))
+
+(mean(1 - probs))
+```
 
 
 ```{r}
@@ -71,8 +107,10 @@ h2o.head(pred_mul)
 
 labels_mul <- as.matrix(pred_mul$predict)
 table(labels_mul, as.matrix(test$Drug))
-```
 
+h2o.shutdown(prompt = FALSE)
+```
+ Como podemos ver ninguno de estos modelos es muy util ya que la clasificación es mala. 
 
 
 ## Tidymodels
@@ -85,7 +123,37 @@ analysis(boot_data$splits[[1]] )%>% head()
 ### Parsnip
 
 ```{r}
-data(datas,package="modeldata")
+library(tidymodels)
+
+# Create an initial split stratifying by the response
+set.seed(42)
+data_split <- initial_split(data, prop = 0.75)
+ames_train <- training(data_split)
+ames_test <- testing(data_split)
+
+ames_train$Drug %<>% as.factor()
+
+
+mnr_spec <- multinom_reg(penalty = 0.1) %>%
+  set_engine("nnet")
+mnr_spec
+
+
+mnr_fit <- mnr_spec %>%
+  fit(Drug ~ ., data = ames_train)
+mnr_fit
+
+
+
+test_results <- bind_cols(
+  dplyr::select(ames_test, "Drug"),
+  predict(mnr_fit, ames_test),
+  predict(mnr_fit, ames_test, type = "prob")
+)
+
+table(test_results$Drug, test_results$.pred_class)
+
+mean(test_results$Drug == test_results$.pred_class, na.rm = TRUE)
 ```
 
 ### Discrim
@@ -98,7 +166,7 @@ summary(data)
 data$Drug %<>% as.factor() 
 nb_mod <- naive_Bayes() %>%
   set_engine("naivebayes") %>%
-  fit(Drug ~ Na_to_K + Sex, data = data)
+  fit(Drug ~ ., data = data)
 nb_mod
 ```
 
