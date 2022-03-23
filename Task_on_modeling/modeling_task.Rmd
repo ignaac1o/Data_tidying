@@ -1,0 +1,104 @@
+---
+title: "Task on Modeling"
+author: "Ignacio Almodóvar & Alejandra Estrada"
+date: "3/22/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE,warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(h2o)
+library(tidymodels)
+```
+
+```{r}
+datas=read.csv2("drug200.csv",sep = ",",header = TRUE)
+summary(datas)
+datas %>% head(5)
+```
+As we can see, the summary says that all variables except Age are factors. However, analying the data the variable "Na_to_k" looks like a numeric variable so we must change it.
+
+```{r}
+datas[,5]  %<>% as.numeric() 
+summary(datas)
+```
+
+We now plot the continuous variables to see if we can find any group evidences for the type of drug
+
+
+```{r}
+ggplot(data,aes(Age,Na_to_K,col=Drug)) + geom_point()
+```
+
+Beforehand there is not clear evidence for the differentiation in groups given the age and the Na_t_k. However, as can be seen, for the DrugY there is a clear bandwidth for Na_to_k being higher than 15.
+
+We are now going to fitt a classification model using h2o package.
+
+```{r,results=FALSE}
+table(data$Drug)
+h2o.init()
+data_h2o=as.h2o(data)
+resp_data="Drug"
+pred_data=setdiff(names(data_h2o), resp_data)
+
+
+setdiff(names(data_h2o), resp_data)
+data_h2o[, resp_data] <- as.factor(data_h2o[, resp_data])
+
+splits = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed = 42)
+train = splits[[1]]
+test = splits[[2]]
+# Run AutoML
+aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leaderboard_frame = test,
+                      include_algos = c("GLM", "XGBoost", "DeepLearning"),max_runtime_secs = 100,max_runtime_secs_per_model = 100, verbosity = NULL)
+
+
+```
+
+
+```{r}
+lb_mul <- h2o.get_leaderboard(aml_mul)
+print(lb_mul, n = nrow(lb_mul))
+```
+
+
+```{r}
+pred_mul <- h2o.predict(object = aml_mul, newdata = test)
+h2o.head(pred_mul)
+
+labels_mul <- as.matrix(pred_mul$predict)
+table(labels_mul, as.matrix(test$Drug))
+```
+
+
+
+## Tidymodels
+
+
+```{r}
+boot_data <- bootstraps(data, times = 10)
+analysis(boot_data$splits[[1]] )%>% head()
+```
+### Parsnip
+
+```{r}
+data(datas,package="modeldata")
+```
+
+### Discrim
+
+```{r}
+library(discrim)
+# Fit a Naive Bayes model (which is actually a kernel discriminant # analysis done by combining univariate kernel density estimators) 
+
+summary(data)
+data$Drug %<>% as.factor() 
+nb_mod <- naive_Bayes() %>%
+  set_engine("naivebayes") %>%
+  fit(Drug ~ Na_to_K + Sex, data = data)
+nb_mod
+```
+
