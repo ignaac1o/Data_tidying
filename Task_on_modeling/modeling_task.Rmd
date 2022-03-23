@@ -132,8 +132,10 @@ ames_train <- training(data_split)
 ames_test <- testing(data_split)
 
 ames_train$Drug %<>% as.factor()
+```
 
 
+```{r}
 mnr_spec <- multinom_reg(penalty = 0.1) %>%
   set_engine("nnet")
 mnr_spec
@@ -156,6 +158,31 @@ table(test_results$Drug, test_results$.pred_class)
 mean(test_results$Drug == test_results$.pred_class, na.rm = TRUE)
 ```
 
+
+
+
+```{r}
+tree_spec=boost_tree() %>% set_engine("xgboost") %>% set_mode("classification")
+
+tree_fit <- tree_spec %>%
+  fit(Drug ~ ., data = ames_train)
+tree_fit
+
+test_results <- bind_cols(
+  dplyr::select(ames_test, "Drug"),
+  predict(tree_fit, ames_test),
+  predict(tree_fit, ames_test, type = "prob")
+)
+
+table(test_results$Drug, test_results$.pred_class)
+
+mean(test_results$Drug == test_results$.pred_class, na.rm = TRUE)
+
+```
+
+
+
+
 ### Discrim
 
 ```{r}
@@ -166,7 +193,24 @@ summary(data)
 data$Drug %<>% as.factor() 
 nb_mod <- naive_Bayes() %>%
   set_engine("naivebayes") %>%
-  fit(Drug ~ ., data = data)
+  fit(Drug ~ ., data = ames_train)
 nb_mod
+
+
+data_grid <- expand.grid(Age = seq(1, 100, length = 200),
+                         Na_to_K = seq(6, 38, length = 200))
+
+data_grid$classes_nb <- predict(nb_mod, ames_test)$.pred_class
+
+
+ggplot(data, aes(x = Na_to_K, y = Age)) +
+  geom_point(aes(col = Drug, pch = Drug), alpha = 0.75) +
+  geom_raster(data = data_grid,
+              aes(x = Na_to_K, y = Age, fill = classes_nb),
+              alpha = 0.25) +
+  theme_bw() +
+  theme(legend.position = "top") +
+  coord_equal()
+
 ```
 
