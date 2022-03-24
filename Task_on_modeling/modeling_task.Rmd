@@ -12,17 +12,27 @@ library(magrittr)
 library(ggplot2)
 library(h2o)
 library(tidymodels)
+library(infer)
+set.seed(123)
 ```
 
-## Preprocess 
 
-First of all, we load the data.
+## Data Explanation
+
+We have chosen a dataset located in kaggle. It contains information about the classification of certain drug types based on different features such as the age, the sex, the blood pressure levels, the cholesterol levels and the sodium-to-potassium ratio.
 
 ```{r}
 data=read.csv2("drug200.csv",sep = ",",header = TRUE)
+data %>% head(5)
 ```
 
-Then we search for missing values.
+As it can be seen, most of the variables are categorical with a few levels. Indeed "Age" and "Na_to_K" are the only continuous ones. The last column "Drug" is the response variable, therefore, we will base most of out analysis in this variable.
+
+
+## Preprocess 
+
+let's search for missing values.
+
 
 ```{r}
 missingValues=function(data){ 
@@ -76,7 +86,9 @@ test = splits[[2]]
 
 # Run AutoML
 aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leaderboard_frame = test,
-                      include_algos = c("GLM", "XGBoost", "DeepLearning","DRF","GBM","StackedEnsemble"),max_runtime_secs = 200,max_runtime_secs_per_model = 100, verbosity = NULL)
+ include_algos = c("GLM", "XGBoost", "DeepLearning","DRF","GBM","StackedEnsemble"),max_runtime_secs = 100,
+ max_runtime_secs_per_model = 100, verbosity = NULL)
+
 ```
 
 If we do leaderboard we obtain the next results:
@@ -134,53 +146,121 @@ h2o.shutdown(prompt = FALSE)
 ```
 
 ## Tidymodels
+We are now going to continue with our analysis but now using some libraries and functions from the package "tidymodels". This is a very versatile package, it includes functions for basically facing every kind of statistical problems.
+
+We can know have a quick-view of our data with the function glimpse(). It is the same data that we have been using in the section before, therefore we already know enough about it.
+
 
 ```{r}
-boot_data <- bootstraps(data, times = 10)
-analysis(boot_data$splits[[1]] )%>% head()
+glimpse(data)
+data$Drug %<>% as.factor() 
+data$Na_to_K %<>% as.numeric() 
 ```
 
-### Parsnip
+
+Probably one of the most useful packages that tidy includes is "rsample" within it we can draw different samples from the main data and work with them to do different analysis. To test an work with this library we are going to use bootstraps() to obtain observations of the dataset with replacement. With these datasets we are going to fit different multinomial models for multiclass classification also using a tidy package parnsip, which helps to build several models.
+
+Therefore we first create the bootstrap object and ask for 5 different samples. We can access to each sample with analysis() function. Also, with the assesment() function we can access to what will be our "test data".
 
 ```{r}
-library(tidymodels)
+boot_data <- bootstraps(data, times = 5,apparent = TRUE)
+analysis(boot_data$splits[[1]]) %>% head(4)
+```
 
-# Create an initial split stratifying by the response
-set.seed(42)
-data_split <- initial_split(data, prop = 0.75)
-ames_train <- training(data_split)
-ames_test <- testing(data_split)
+We now want to build a model that allows to do classification over our dataset. To do that we are going to use a multinomial regression model with a neural network engine. 
 
-ames_train$Drug %<>% as.factor()
+```{r}
+?details_multinom_reg_nnet
+mult_reg=multinom_reg() %>% set_engine("nnet") %>% set_mode("classification")
+```
 
-mnr_spec <- multinom_reg(penalty = 0.1) %>%
-  set_engine("nnet")
-mnr_spec
+Once we have the model set up we can fit it with the different samples.
 
-mnr_fit <- mnr_spec %>%
-  fit(Drug ~ ., data = ames_train)
-mnr_fit
+```{r}
+boot_fit=list()
+for (i in 1:5) {
+  boot_fit[[i]] <- mult_reg %>%
+    fit(Drug ~ ., data = analysis(boot_data$splits[[i]]))
+}
+```
 
+Then we can evaluate them with the test data also given by the bootstrap function. We are going to do different predictions for each model and then compare it with its test to see how well the classification was done.
+
+```{r}
+prediction=list()
+prediction_percentage=c()
+for (i in 1:5) {
+  prediction[i]=predict(boot_fit[[i]],assessment(boot_data$splits[[i]]))
+}
+
+for (i in 1:5) {
+  prediction_percentage[i]=mean(prediction[[i]] == assessment(boot_data$splits[[i]])$Drug)
+}
+
+prediction_percentage
+```
+
+As we can see from the percentages for predictions that were right, most of the models are actually very good. In fact, all of them are over 0.98%, which means that it is almost predicting perfectly. 
+
+However, this bootstrap example was done just for educational purposes. It is usually better to use most of the data without replacement available to fit a model. Also, as we saw that using this approach we could get over an 98% of the prediction correctly, we would now try another method but now using all the data available.
+
+We are now going to split again the dataset. But this time into training and testing, again using the rsample package.
+
+```{r}
+drugs_split=initial_split(data,strata = Na_to_K,prop = 0.7)
+drugs_train <- training(drugs_split)
+drugs_test <- testing(drugs_split)
+```
+
+And now we create another model. We are going to go now with a boost_tree model, using the engine "xgboost" for multiclass classification. Again, we create and fit the model:
+
+
+```{r,warning=FALSE,results=FALSE}
+tree_spec=boost_tree() %>% set_engine("xgboost") %>% set_mode("classification")
+
+tree_fit <- tree_spec %>%
+  fit(Drug ~ ., data = drugs_train)
+```
+
+Once we have the model fitted we can check its accuracy for predictions. To do that we use predict and obtain its confusion matrix.
+
+```{r}
 test_results <- bind_cols(
-  dplyr::select(ames_test, "Drug"),
-  predict(mnr_fit, ames_test),
-  predict(mnr_fit, ames_test, type = "prob")
-)
+  dplyr::select(drugs_test, "Drug"),
+  predict(tree_fit, drugs_test))
 
 table(test_results$Drug, test_results$.pred_class)
-
-mean(test_results$Drug == test_results$.pred_class, na.rm = TRUE)
 ```
 
-### Discrim
+From the output we can see that the prediction has an accuracy of almost 100%, which means that our model is working very good. Indeed it is able to predict perfectly the type of Drug that a person should be taking given the predictors seen in this analysis.
+
+Once we have a good predictive model we are going to do a little bit of inference on our dataset. To do this we are going to use the "infer" package, which is also part of tidymodels. We are going to analyze if the mean age of the sample is anywhere close to the real population, where we know that the mean age in 2015 was 42.5 in Spain which will be our null hypothesis.
 
 ```{r}
-library(discrim)
-# Fit a Naive Bayes model (which is actually a kernel discriminant analysis done by combining univariate kernel density estimators) 
+age_estimator = data %>% specify(response=Age) %>% calculate(stat = "mean")
+null_dist <- data %>% specify(response=Age) %>%
+   hypothesize(null = "point",mu=42.5) %>%
+   generate(reps = 1000, type = "bootstrap") %>%
+   calculate(stat = "mean")
 
-summary(data)
-data$Drug %<>% as.factor() 
-nb_mod <- naive_Bayes() %>%
-  set_engine("naivebayes") %>%
-  fit(Drug ~ ., data = data)
+visualize(null_dist) +
+  shade_p_value(obs_stat = age_estimator, direction = "two_sided")
 ```
+
+From the plot we can see that the mean population of the sample lies on a tail of the null hypothesis. Therefore, observing the sample mean of 44.315 looks a little bit unlikely. However, we still have to check how unlikely this is. To obtain so we calculate the p-value.
+
+```{r}
+p_value <- null_dist %>%
+  get_p_value(obs_stat = age_estimator, direction = "two_sided")
+p_value
+```
+
+We can see that the p_value obtained is small, but not very much. Which means, that the probability of the sample mean being this far from 42.5 is 0.13. Nevertheless, we still have to calculate the confidence interval for these results. We will calculate it for a confidence level of $\alpha=0.05$.
+
+```{r}
+null_dist %>% get_confidence_interval(point_estimate = age_estimator, level = .95, type = "se")
+```
+
+As it can be seen, 42.5 lies inside this interval, which means that the p-value is not statistically significant at an $\alpha=0.05$ confidence level.
+
+
