@@ -1,7 +1,7 @@
 ---
 title: "Task on Modeling"
 author: "Ignacio Almodóvar & Alejandra Estrada"
-date: "3/22/2022"
+date: "03/22/2022"
 output: pdf_document
 ---
 
@@ -14,15 +14,15 @@ library(h2o)
 library(tidymodels)
 ```
 
-```{r}
-data=read.csv2("drug200.csv",sep = ",",header = TRUE)
-summary(data)
-data %>% head(5)
-```
-
 ## Preprocess 
 
-let's search for missing values.
+First of all, we load the data.
+
+```{r}
+data=read.csv2("drug200.csv",sep = ",",header = TRUE)
+```
+
+Then we search for missing values.
 
 ```{r}
 missingValues=function(data){ 
@@ -38,9 +38,8 @@ missingValues=function(data){
     cat("There are no missing values in this dataset")
   } 
 }
-missingValues(drugs)
+missingValues(data)
 ```
-
 
 As we can see, the summary says that all variables except Age are factors. However, analyzing the data the variable "Na_to_k" looks like a numeric variable so we must change it.
 
@@ -49,14 +48,9 @@ data[,5]  %<>% as.numeric()
 summary(data)
 ```
 
-
-#Analyze correlation (hacer para variable age y Na_to_K ya que son las únicas continuas)
-No se si se podrá distinguir entre tipos de droga para las correlaciones o que. Pero estaría bien ver si se puede sacar alguna conclusion interseante con la correlación.
-
-
+## H2O
 
 We now plot the continuous variables to see if we can find any group evidences for the type of drug
-
 
 ```{r}
 ggplot(data,aes(Age,Na_to_K,col=Drug)) + geom_point()
@@ -73,53 +67,79 @@ data_h2o=as.h2o(data)
 resp_data="Drug"
 pred_data=setdiff(names(data_h2o), resp_data)
 
-
 setdiff(names(data_h2o), resp_data)
 data_h2o[, resp_data] <- as.factor(data_h2o[, resp_data])
 
 splits = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed = 42)
 train = splits[[1]]
 test = splits[[2]]
+
 # Run AutoML
 aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leaderboard_frame = test,
-                      include_algos = c("GLM", "XGBoost", "DeepLearning","DRF","GBM","StackedEnsemble"),max_runtime_secs = 1000,max_runtime_secs_per_model = 100, verbosity = NULL)
-
-
+                      include_algos = c("GLM", "XGBoost", "DeepLearning","DRF","GBM","StackedEnsemble"),max_runtime_secs = 200,max_runtime_secs_per_model = 100, verbosity = NULL)
 ```
 
+If we do leaderboard we obtain the next results:
 
 ```{r}
 lb_mul <- h2o.get_leaderboard(aml_mul)
-print(lb_mul, n = nrow(lb_mul))
+head(lb_mul)
 ```
+
+The classification is not really good. The `mean_per_class_error` of the best model of type `"DeepLearning"`, based on fully-connected multilayer artificial neural network, is 0.4015873. As a comparison, the mean-per-class error by “weighted guessing” is:
+
 ```{r}
 probs <- table(as.matrix(data$Drug))
 probs <- probs / sum(probs)
-(sum(probs^2))
-
 (mean(1 - probs))
 ```
 
+And th probability of correct classification by pure chance is:
+
+```{r}
+(sum(probs^2))
+```
+
+We do prediction in the test dataset to see that the prediction is not very good.
 
 ```{r}
 pred_mul <- h2o.predict(object = aml_mul, newdata = test)
 h2o.head(pred_mul)
+```
 
+And we check the accuracy of the label assignments with the real labels
+
+```{r}
 labels_mul <- as.matrix(pred_mul$predict)
 table(labels_mul, as.matrix(test$Drug))
+```
 
+As we expected after observing `h2o.head(pred_mul)` the only label that has been assigned correctly is that of the variable `DrugY`. The rest labels give us very unfavorable results.
+
+So we can conclude that none of these models is very useful since the classification is poor.
+
+To end, we will explain the leader model compare with all AutoML models.
+
+```{r}
+ex_mul <- h2o.explain(object = aml_mul, newdata = test)
+```
+
+The explainers clearly point to `Na_to_K` being the most relevant predictor. The partial dependence plots are not so useful in this case, 
+we can only conclude that the partial dependence with highest mean response is the partial dependence on "Na_to_K" with target = "DrugY".
+
+Finally, we close the h2o cluster:
+
+```{r}
 h2o.shutdown(prompt = FALSE)
 ```
- Como podemos ver ninguno de estos modelos es muy util ya que la clasificación es mala. 
-
 
 ## Tidymodels
-
 
 ```{r}
 boot_data <- bootstraps(data, times = 10)
 analysis(boot_data$splits[[1]] )%>% head()
 ```
+
 ### Parsnip
 
 ```{r}
@@ -133,17 +153,13 @@ ames_test <- testing(data_split)
 
 ames_train$Drug %<>% as.factor()
 
-
 mnr_spec <- multinom_reg(penalty = 0.1) %>%
   set_engine("nnet")
 mnr_spec
 
-
 mnr_fit <- mnr_spec %>%
   fit(Drug ~ ., data = ames_train)
 mnr_fit
-
-
 
 test_results <- bind_cols(
   dplyr::select(ames_test, "Drug"),
@@ -160,13 +176,11 @@ mean(test_results$Drug == test_results$.pred_class, na.rm = TRUE)
 
 ```{r}
 library(discrim)
-# Fit a Naive Bayes model (which is actually a kernel discriminant # analysis done by combining univariate kernel density estimators) 
+# Fit a Naive Bayes model (which is actually a kernel discriminant analysis done by combining univariate kernel density estimators) 
 
 summary(data)
 data$Drug %<>% as.factor() 
 nb_mod <- naive_Bayes() %>%
   set_engine("naivebayes") %>%
   fit(Drug ~ ., data = data)
-nb_mod
 ```
-
