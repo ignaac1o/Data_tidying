@@ -12,6 +12,7 @@ library(magrittr)
 library(ggplot2)
 library(h2o)
 library(tidymodels)
+library(unbalanced)
 ```
 
 ```{r}
@@ -115,11 +116,46 @@ h2o.shutdown(prompt = FALSE)
 
 ## Tidymodels
 
+```{r}
+#Instead of summary
+glimpse(data)
+data %>% skim()
+```
+
+
 
 ```{r}
 boot_data <- bootstraps(data, times = 10)
 analysis(boot_data$splits[[1]] )%>% head()
 ```
+
+#rsample
+
+To split data into training and testing we are going to use the rsample package.
+
+```{r}
+drugs_split=initial_split(data,strata = Na_to_K,prop = 0.7)
+table(training(drugs_split)$Drug)
+
+```
+
+
+```{r}
+data$Drug %<>% as.factor() 
+data$Na_to_K %<>% as.numeric()
+summary(data)
+boot_data=bootstraps(data,times=10)
+boot_fit=list()
+for (i in 1:10) {
+  boot_fit[[i]] <- mnr_spec %>%
+    fit(Drug ~ ., data = analysis(boot_data$splits[[i]]))
+}
+
+
+
+```
+
+
 ### Parsnip
 
 ```{r}
@@ -142,9 +178,8 @@ mnr_spec
 
 
 mnr_fit <- mnr_spec %>%
-  fit(Drug ~ ., data = ames_train)
+  fit(Drug ~ ., data = training(drugs_split))
 mnr_fit
-
 
 
 test_results <- bind_cols(
