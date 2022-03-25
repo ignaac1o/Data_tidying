@@ -251,3 +251,15 @@ null_dist %>% get_confidence_interval(point_estimate = age_estimator, level = .9
 
 As it can be seen, 42.5 lies inside this interval, which means that the p-value is not statistically significant at an $\alpha=0.05$ confidence level.
 
+## Conclusions
+
+As we have seen through this analysis both packages "h2o" and "tidymodels" are very useful to do statistical analysis in R. These packages includes an enormous amount of useful functions that facilities and makes much faster the implementation of methods, algorithms and analysis.
+
+At the end I would say that we have obtained very good results in this modeling task. Even Though that at first everything looked a little bit bad as the models given in the h2o package were not giving very promising results. Nevertheless, thanks to the amount of models contained in the tidymodels package and its capacity to fit and build them we obtained a much better model.
+
+## Contribution
+
+### Ignacio Almodóvar 55%
+### Alejandra Estrada 45%
+
+
