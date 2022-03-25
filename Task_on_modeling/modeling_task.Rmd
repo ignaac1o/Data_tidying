@@ -16,6 +16,7 @@ library(infer)
 set.seed(123)
 ```
 
+\newpage
 
 ## Data Explanation
 
@@ -31,10 +32,10 @@ As it can be seen, most of the variables are categorical with a few levels. Inde
 
 ## Preprocess 
 
-let's search for missing values.
+First of all we have to see if the dataset that we are using has any missing values. Therefore, we have created a function that tells us if there is any missing values.
 
 
-```{r}
+```{r,echo=FALSE}
 missingValues=function(data){ 
   count=0
   a=cbind(lapply(lapply(data, is.na), sum)) 
@@ -48,29 +49,41 @@ missingValues=function(data){
     cat("There are no missing values in this dataset")
   } 
 }
+```
+
+```{r}
 missingValues(data)
 ```
 
-As we can see, the summary says that all variables except Age are factors. However, analyzing the data the variable "Na_to_k" looks like a numeric variable so we must change it.
+Then it is always interesting to see which types of object is assigned to each variable. To do so we will quickly summarize the dataset.
 
 ```{r}
-data[,5]  %<>% as.numeric()
 summary(data)
 ```
 
-## H2O
-
-We now plot the continuous variables to see if we can find any group evidences for the type of drug
+As we can see, the summary says that all variables except Age are characters. However, analyzing the data the variable "Na_to_k" looks like a numeric variable so we must change it. Also, the variable "Drug" which is the one that we are going to base our analysis on is defined as a character but we want it to be a factor.
 
 ```{r}
+data[,5]  %<>% as.numeric()
+data[,6] %<>% as.factor()
+summary(data)
+```
+
+Now we know that the data has the correct format. Therefore, we can start analyzing it. First of all we are going to plot the continuous variables to see if we can find any group evidences for the type of drug given the age and the concentration Na_to_K
+
+```{r,out.width="70%"}
 ggplot(data,aes(Age,Na_to_K,col=Drug)) + geom_point()
 ```
 
 Beforehand there is not clear evidence for the differentiation in groups given the age and the Na_t_k. However, as can be seen, for the DrugY there is a clear bandwidth for Na_to_k being higher than 15.
 
-We are now going to fitt a classification model using h2o package.
+## H2O
 
-```{r,results=FALSE}
+We want to be able to predict the type of Drug that each person should be taken based on our predictive variables "Age","Sex","BP","Cholesterol" and "Na_to_K". Therefore, we are clearly facing a multiclass classification problem, so we would need to find and fit a model that suits our data and is able to predict and classify with a good accuracy.
+
+With this said we are first going to fit a model using h2o package. This package is very useful as it computes many models for the data given and gives many outputs indicating several aspects of the model.
+
+```{r,results=FALSE,include=FALSE}
 table(data$Drug)
 h2o.init()
 data_h2o=as.h2o(data)
@@ -91,70 +104,46 @@ aml_mul = h2o.automl(x = pred_data, y = resp_data, training_frame = train, leade
 
 ```
 
-If we do leaderboard we obtain the next results:
+So, we build an h2o and split the data into training and testing. Then run the h2o and obtain the following leaderboard of the methods computed.
 
 ```{r}
-lb_mul <- h2o.get_leaderboard(aml_mul)
-head(lb_mul)
+h2o.get_leaderboard(aml_mul) %>% head(5)
 ```
 
-The classification is not really good. The `mean_per_class_error` of the best model of type `"DeepLearning"`, based on fully-connected multilayer artificial neural network, is 0.4015873. As a comparison, the mean-per-class error by “weighted guessing” is:
+As we can see, the classification is not good at all. It is important to meassure that we restricted a lot the time taken per model because the dataset is not long so at the end the computations for each model should not take too long. Nevertheless we can see that the model with the lowest "mean_per_class_error" is the DeepLearning one. Therefore we can say that this is the best model calculated with the h2o package. Thus it will be the one used for predicting.
+
+Even though we know that the model is not very good we want to check its prediction. Therefore, we compute it using the function given in h2o predict() and build a confusion matrix to see the accuracy with the real Drug type of the test data.
 
 ```{r}
-probs <- table(as.matrix(data$Drug))
-probs <- probs / sum(probs)
-(mean(1 - probs))
-```
-
-And th probability of correct classification by pure chance is:
-
-```{r}
-(sum(probs^2))
-```
-
-We do prediction in the test dataset to see that the prediction is not very good.
-
-```{r}
+h2o.no_progress()
 pred_mul <- h2o.predict(object = aml_mul, newdata = test)
-h2o.head(pred_mul)
-```
-
-And we check the accuracy of the label assignments with the real labels
-
-```{r}
 labels_mul <- as.matrix(pred_mul$predict)
 table(labels_mul, as.matrix(test$Drug))
 ```
 
-As we expected after observing `h2o.head(pred_mul)` the only label that has been assigned correctly is that of the variable `DrugY`. The rest labels give us very unfavorable results.
+As we expected, the classification has not been good at all, indeed the only label that has been assigned more times correctly is that of the variable "DrugY", which is the one most repeated in the dataset and the one that could be easily classified by just looking at the first plot that we did. The rest labels give us very unfavorable results. Some of them are not being predicted correctly neither for just one time.
 
-So we can conclude that none of these models is very useful since the classification is poor.
-
-To end, we will explain the leader model compare with all AutoML models.
+Therefore, we can conclude that none of these models is very useful since the classification is poor. To end, we will see which of the variables were more important for the model.
 
 ```{r}
 ex_mul <- h2o.explain(object = aml_mul, newdata = test)
 ```
 
-The explainers clearly point to `Na_to_K` being the most relevant predictor. The partial dependence plots are not so useful in this case, 
-we can only conclude that the partial dependence with highest mean response is the partial dependence on "Na_to_K" with target = "DrugY".
-
-Finally, we close the h2o cluster:
+The explainers clearly point as expected to "Na_to_K" being the most relevant predictor. The partial dependence plots are not so useful in this case. To finally end with the h2o analysis we have to close the cluster:
 
 ```{r}
 h2o.shutdown(prompt = FALSE)
 ```
 
 ## Tidymodels
+
 We are now going to continue with our analysis but now using some libraries and functions from the package "tidymodels". This is a very versatile package, it includes functions for basically facing every kind of statistical problems.
 
-We can know have a quick-view of our data with the function glimpse(). It is the same data that we have been using in the section before, therefore we already know enough about it.
+We can know have a quick-view of our data with the function glimpse(). It is the same data that we have been using in the section before, therefore we already know enough about it. However, before beginning an analysis it is always good to make sure that the data has the correct format.
 
 
 ```{r}
 glimpse(data)
-data$Drug %<>% as.factor() 
-data$Na_to_K %<>% as.numeric() 
 ```
 
 
@@ -200,7 +189,7 @@ for (i in 1:5) {
 prediction_percentage
 ```
 
-As we can see from the percentages for predictions that were right, most of the models are actually very good. In fact, all of them are over 0.98%, which means that it is almost predicting perfectly. 
+As we can see from the percentages for predictions that were right, most of the models are actually very good. In fact, all of them are over 90%, which means that it is predicting almost perfectly. 
 
 However, this bootstrap example was done just for educational purposes. It is usually better to use most of the data without replacement available to fit a model. Also, as we saw that using this approach we could get over an 98% of the prediction correctly, we would now try another method but now using all the data available.
 
@@ -213,7 +202,6 @@ drugs_test <- testing(drugs_split)
 ```
 
 And now we create another model. We are going to go now with a boost_tree model, using the engine "xgboost" for multiclass classification. Again, we create and fit the model:
-
 
 ```{r,warning=FALSE,results=FALSE}
 tree_spec=boost_tree() %>% set_engine("xgboost") %>% set_mode("classification")
@@ -262,5 +250,4 @@ null_dist %>% get_confidence_interval(point_estimate = age_estimator, level = .9
 ```
 
 As it can be seen, 42.5 lies inside this interval, which means that the p-value is not statistically significant at an $\alpha=0.05$ confidence level.
-
 
